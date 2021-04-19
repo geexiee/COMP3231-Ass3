@@ -34,12 +34,20 @@
  * Address space structure and operations.
  */
 
+// Linked list of regions
+struct region {
+        vaddr_t vaddr;
+        size_t memsize;
+        unsigned readable:1;
+        unsigned writeable:2;
+        unsigned executable:1;
+        struct region *next;
+}
 
 #include <vm.h>
 #include "opt-dumbvm.h"
 
 struct vnode;
-
 
 /*
  * Address space - data structure associated with the virtual memory
@@ -58,7 +66,8 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+        struct region region_list;
+        
 #endif
 };
 
