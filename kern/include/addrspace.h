@@ -67,7 +67,8 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         struct region region_list;
-        
+        struct first_ptable *first_ptable;
+
 #endif
 };
 

@@ -51,50 +51,130 @@
 struct addrspace *
 as_create(void)
 {
-	struct addrspace *as;
+ 	struct addrspace *as;
 
-	as = kmalloc(sizeof(struct addrspace));
-	if (as == NULL) {
-		return NULL;
-	}
+ 	as = kmalloc(sizeof(struct addrspace));
+ 	if (as == NULL) {
+ 		return NULL;
+ 	}
 
-	/*
-	 * Initialize as needed.
-	 */
+ 	// Create first level page table "lazy" when needed > first process
+ 	as->region_list = init_first_ptable();
 
-	return as;
+ 	// check if kmallocd
+ 	if( as->region_list == NULL ) {
+ 		kfree(as);
+ 		return NULL;
+ 	}
+
+ 	return as;
 }
+
 
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
-	struct addrspace *newas;
+    // TODO: second and third level clone
+    // Second level -> returns array of pointers
+    // Third level -> returns array with each paddr copied in
 
-	newas = as_create();
-	if (newas==NULL) {
-		return ENOMEM;
-	}
+    // Create a new address space - calls as_create
+    struct addrspace *new_as;
+    if ((new_as = as_create()) == NULL) {
+        return ENOMEM;
+    }
 
-	/*
-	 * Write this.
-	 */
+    // pointer to the array of top level pagetable
+    struct first_ptable *old_first_pt = old->first_ptable;
+    struct first_ptable *new_first_pt = new_as->first_ptable;
 
-	(void)old;
+    // array of pointers to second level pagetable
+    struct second_ptable **old_second_pt = old_first_pt->entries;
+    struct second_ptable **new_second_pt = new_first_pt->entries;
 
-	*ret = newas;
-	return 0;
+    // array of pointers to third level pagetable
+    struct third_ptable **old_entries = old_second_pt->entries;
+    struct third_ptable **new_entries = new_second_pt->entries;
+
+    // set lock when replicating
+    spinlock_acquire(&(new_first_pt->lock));
+
+    int i = 0;
+    int j = 0;
+    while (i < FIRST_PTABLE_LIMIT) {
+        /*  second level replicate */
+        // copy whatever is initialised
+        if (old_second_pt[i] != NULL) {
+			// create new array of second_level_ptable arrays
+            new_second_pt[i] = create_second_ptable();
+
+            if (new_second_pt[i] == NULL) {
+                // release lock as ENOMEM error
+                spinlock_release(&(new_first_pt->lock));
+                as_destroy(new_as);
+                return ENOMEM;
+            }
+            // loop through second level table
+            old_entries = old_second_pt[i];
+            new_entries = new_second_pt[i];
+            j = 0;
+
+            /*  second level replicate, populate new third_level array */
+            // copy all of third level entries into second level table
+            while(j < SECOND_PTABLE_LIMIT) {
+
+                // replicate non-NULL entries into second level page table
+                if(old_entries[j] != NULL) {
+                    new_entries[j] = third_ptable_clone(old_entries[j]);
+
+                    // ENOMEM ERROR
+                    if(new_entries[j] == NULL {
+                        // release lock as ENOMEM error
+                        spinlock_release(&(new_first_pt->lock));
+                        as_destroy(new_as);
+                        return ENOMEM;
+                    }
+                }
+                j++;
+            }
+			new_second_pt[i] = new_entries;
+        }
+        i++;
+    }
+    // release lock
+    spinlock_release(&(new_first_pt->lock));
+
+    // replicate regions > pass in region_list and loop through
+    struct region *curr = old->region_list;
+    while(curr != NULL) {
+        as_define_region(new_as, curr->vaddr, curr->memsize, curr->readable, curr->writeable,curr->executable);
+        curr = curr->next;
+    }
+    *ret = new_as;
+    return 0;
 }
+
+
 
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
+    struct region *curr = as->region_list;
+    struct region *next = curr;
+	while (curr != NULL) {
+		next = curr->next;
+		kfree(curr);
+		curr = next;
+	}
+/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
+	first_ptable_clean(as->first_ptable);
+/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 
 	kfree(as);
 }
 
+
+// on activate flush TLB - as per ASST3 Lecture Video
 void
 as_activate(void)
 {
@@ -109,9 +189,14 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+    // NUM_TLB given as 64 in /MIPS/include/tlb.h
+     // disable interrupts
+    int s = splhigh();
+  	for (int i = 0; i < NUM_TLB; i++) {
+  		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+  	}
+     // re-enable interrupts
+	splx(s);
 }
 
 void
@@ -122,6 +207,15 @@ as_deactivate(void)
 	 * anything. See proc.c for an explanation of why it (might)
 	 * be needed.
 	 */
+
+    // NUM_TLB given as 64 in /MIPS/include/tlb.h
+    // disable interrupts
+    int s = splhigh();
+ 	for (int i = 0; i < NUM_TLB; i++) {
+ 		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+ 	}
+    // re-enable interrupts
+ 	splx(s);
 }
 
 /*
@@ -134,6 +228,7 @@ as_deactivate(void)
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
  */
+
 int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
@@ -141,50 +236,79 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	/*
 	 * Write this.
 	 */
+/*********** LOCKS??? *******************************************************/
+/*********** LOCKS??? *******************************************************/
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return ENOSYS; /* Unimplemented */
+    struct region *region = kmalloc(sizeof(struct region));
+    if (region == NULL) {
+        return ENOMEM;
+    }
+
+    region->vaddr = vaddr;
+    region->memsize = memsize;
+    region->readable = readable != 0; //bool 1 or 0
+    region->writeable = writeable != 0;
+    region->executable = executable != 0;
+    region->next = NULL;
+
+    struct region *curr = as->region_list;
+    struct region *end = curr;
+
+    // check if region list is empty
+    if (as->region_list != NULL) {
+        while (curr != NULL) {
+            if(curr->next == NULL) {
+                // get end of list
+                end = curr;
+            }
+            curr = curr->next;
+        }
+        // add region to end of list
+        end->next = region;
+    } else {
+        as->region_list = region;
+    }
+    return 0;
 }
 
+// before load - mark all region as writeable for loading of content into address space.
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+	struct region *curr = as->region_list;
+    while(curr != NULL) {
+        curr->writeable = (curr->writeable << 1) | 1; // shift
+        curr = curr->next;
+    }
 
-	(void)as;
 	return 0;
 }
+
 
 int
 as_complete_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+    struct region *curr = as->region_list;
+    while(curr != NULL) {
+		curr->writeable >>= 1;
+		curr = curr->next;
+	}
 
-	(void)as;
-	return 0;
+    return 0;
 }
+
 
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
 
-	(void)as;
+    int errno = as_define_region(as, USERSTACK - USER_STACK_SIZE, USER_STACK_SIZE, 1, 1, 0);
+    if (errno) {
+        return errno;
+    }
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
 
 	return 0;
 }
-

@@ -1,5 +1,5 @@
-#ifndef PTABLE_H_
-#define PTABLE_H_
+#ifndef _PAGETABLE_H_
+#define _PAGETABLE_H_
 
 struct first_ptable {
     struct spinlock lock;
@@ -7,9 +7,18 @@ struct first_ptable {
 }
 
 struct second_ptable {
-    paddr_t *entries; // array of third level tables
+    paddr_t **entries; // array of pointers to third level tables
 }
 
-struct first_ptable *init_first_ptable();
-struct ptable *create_second_ptable(void);
-struct second_ptable *copy_second_ptable(struct second_ptable *);
+struct third_ptable {
+    paddr_t *entries; // array of paddr_t entries
+}
+
+struct first_ptable *init_first_ptable(void);
+struct second_ptable *create_second_ptable(void);
+struct third_ptable *create_third_ptable(void);
+
+struct third_ptable *copy_third_ptable(struct third_ptable *old);
+paddr_t get_pt_frame(vaddr_t addr);
+
+#endif /* _PAGETABLE_H_ */
