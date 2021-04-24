@@ -38,6 +38,8 @@
 #include <vm.h>
 #include <proc.h>
 
+#include <pagetable.h>
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
