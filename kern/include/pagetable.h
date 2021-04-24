@@ -1,25 +1,23 @@
-#ifndef PTABLE_H_
-#define PTABLE_H_
+#ifndef _PAGETABLE_H_
+#define _PAGETABLE_H_
 
 struct first_ptable {
     struct second_ptable **entries; // array of pointers to secondlvl tables
 }
 
 struct second_ptable {
-    struct third_ptable **entries; // array of pointers to third level tables
+    paddr_t **entries; // array of pointers to third level tables
 }
 
 struct third_ptable {
-    paddr_t *entries; // array of physical addresses
+    paddr_t *entries; // array of paddr_t entries
 }
 
-struct first_ptable *init_first_ptable();
-struct ptable *init_second_ptable(void);
-struct second_ptable *copy_second_ptable(struct second_ptable *);
-struct third_ptable *init_third_ptable();
-struct third_ptable *copy_third_ptable(struct third_ptable *);
-paddr_t* ptable_lookup(vaddr_t address, struct pagetable** tableref);
+struct first_ptable *init_first_ptable(void);
+struct second_ptable *create_second_ptable(void);
+struct third_ptable *create_third_ptable(void);
 
-#define FIRST_PAGE_LIMIT 256
-#define SECOND_PAGE_LIMIT 64
-#define THIRD_PAGE_LIMIT 64
+struct third_ptable *copy_third_ptable(struct third_ptable *old);
+paddr_t get_pt_frame(vaddr_t addr);
+
+#endif /* _PAGETABLE_H_ */

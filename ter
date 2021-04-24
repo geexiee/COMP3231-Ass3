@@ -1,0 +1,601 @@
+[1mdiff --git a/kern/conf/conf.kern b/kern/conf/conf.kern[m
+[1mindex d1dacd1..8424122 100644[m
+[1m--- a/kern/conf/conf.kern[m
+[1m+++ b/kern/conf/conf.kern[m
+[36m@@ -345,6 +345,7 @@[m [mfile      vm/kmalloc.c[m
+ [m
+ optofffile dumbvm   vm/addrspace.c[m
+ optofffile dumbvm   vm/vm.c[m
+[32m+[m[32moptofffile dumbvm   vm/pagetable.c[m
+ [m
+ #[m
+ # Network[m
+[1mdiff --git a/kern/include/addrspace.h b/kern/include/addrspace.h[m
+[1mindex ad7a643..5b1be01 100644[m
+[1m--- a/kern/include/addrspace.h[m
+[1m+++ b/kern/include/addrspace.h[m
+[36m@@ -67,7 +67,8 @@[m [mstruct addrspace {[m
+         paddr_t as_stackpbase;[m
+ #else[m
+         struct region region_list;[m
+[31m-        [m
+[32m+[m[32m        struct first_ptable *first_ptable;[m
+[32m+[m
+ #endif[m
+ };[m
+ [m
+[1mdiff --git a/kern/include/pagetable.h b/kern/include/pagetable.h[m
+[1mindex 999f687..32684f0 100644[m
+[1m--- a/kern/include/pagetable.h[m
+[1m+++ b/kern/include/pagetable.h[m
+[36m@@ -1,5 +1,5 @@[m
+[31m-#ifndef PTABLE_H_[m
+[31m-#define PTABLE_H_[m
+[32m+[m[32m#ifndef _PAGETABLE_H_[m
+[32m+[m[32m#define _PAGETABLE_H_[m
+ [m
+ struct first_ptable {[m
+     struct spinlock lock;[m
+[36m@@ -7,9 +7,18 @@[m [mstruct first_ptable {[m
+ }[m
+ [m
+ struct second_ptable {[m
+[31m-    paddr_t *entries; // array of third level tables[m
+[32m+[m[32m    paddr_t **entries; // array of pointers to third level tables[m
+ }[m
+ [m
+[31m-struct first_ptable *init_first_ptable();[m
+[31m-struct ptable *create_second_ptable(void);[m
+[31m-struct second_ptable *copy_second_ptable(struct second_ptable *);[m
+\ No newline at end of file[m
+[32m+[m[32mstruct third_ptable {[m
+[32m+[m[32m    paddr_t *entries; // array of paddr_t entries[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mstruct first_ptable *init_first_ptable(void);[m
+[32m+[m[32mstruct second_ptable *create_second_ptable(void);[m
+[32m+[m[32mstruct third_ptable *create_third_ptable(void);[m
+[32m+[m
+[32m+[m[32mstruct third_ptable *copy_third_ptable(struct third_ptable *old);[m
+[32m+[m[32mpaddr_t get_pt_frame(vaddr_t addr);[m
+[32m+[m
+[32m+[m[32m#endif /* _PAGETABLE_H_ */[m
+[1mdiff --git a/kern/vm/addrspace.c b/kern/vm/addrspace.c[m
+[1mindex 1f47bf5..73de532 100644[m
+[1m--- a/kern/vm/addrspace.c[m
+[1m+++ b/kern/vm/addrspace.c[m
+[36m@@ -51,50 +51,130 @@[m
+ struct addrspace *[m
+ as_create(void)[m
+ {[m
+[31m-	struct addrspace *as;[m
+[32m+[m[41m [m	[32mstruct addrspace *as;[m
+ [m
+[31m-	as = kmalloc(sizeof(struct addrspace));[m
+[31m-	if (as == NULL) {[m
+[31m-		return NULL;[m
+[31m-	}[m
+[32m+[m[41m [m	[32mas = kmalloc(sizeof(struct addrspace));[m
+[32m+[m[41m [m	[32mif (as == NULL) {[m
+[32m+[m[41m [m		[32mreturn NULL;[m
+[32m+[m[41m [m	[32m}[m
+ [m
+[31m-	/*[m
+[31m-	 * Initialize as needed.[m
+[31m-	 */[m
+[32m+[m[41m [m	[32m// Create first level page table "lazy" when needed > first process[m
+[32m+[m[41m [m	[32mas->region_list = init_first_ptable();[m
+[32m+[m
+[32m+[m[41m [m	[32m// check if kmallocd[m
+[32m+[m[41m [m	[32mif( as->region_list == NULL ) {[m
+[32m+[m[41m [m		[32mkfree(as);[m
+[32m+[m[41m [m		[32mreturn NULL;[m
+[32m+[m[41m [m	[32m}[m
+ [m
+[31m-	return as;[m
+[32m+[m[41m [m	[32mreturn as;[m
+ }[m
+ [m
+[32m+[m
+ int[m
+ as_copy(struct addrspace *old, struct addrspace **ret)[m
+ {[m
+[31m-	struct addrspace *newas;[m
+[32m+[m[32m    // TODO: second and third level clone[m
+[32m+[m[32m    // Second level -> returns array of pointers[m
+[32m+[m[32m    // Third level -> returns array with each paddr copied in[m
+ [m
+[31m-	newas = as_create();[m
+[31m-	if (newas==NULL) {[m
+[31m-		return ENOMEM;[m
+[31m-	}[m
+[32m+[m[32m    // Create a new address space - calls as_create[m
+[32m+[m[32m    struct addrspace *new_as;[m
+[32m+[m[32m    if ((new_as = as_create()) == NULL) {[m
+[32m+[m[32m        return ENOMEM;[m
+[32m+[m[32m    }[m
+ [m
+[31m-	/*[m
+[31m-	 * Write this.[m
+[31m-	 */[m
+[32m+[m[32m    // pointer to the array of top level pagetable[m
+[32m+[m[32m    struct first_ptable *old_first_pt = old->first_ptable;[m
+[32m+[m[32m    struct first_ptable *new_first_pt = new_as->first_ptable;[m
+ [m
+[31m-	(void)old;[m
+[32m+[m[32m    // array of pointers to second level pagetable[m
+[32m+[m[32m    struct second_ptable **old_second_pt = old_first_pt->entries;[m
+[32m+[m[32m    struct second_ptable **new_second_pt = new_first_pt->entries;[m
+ [m
+[31m-	*ret = newas;[m
+[31m-	return 0;[m
+[32m+[m[32m    // array of pointers to third level pagetable[m
+[32m+[m[32m    struct third_ptable **old_entries = old_second_pt->entries;[m
+[32m+[m[32m    struct third_ptable **new_entries = new_second_pt->entries;[m
+[32m+[m
+[32m+[m[32m    // set lock when replicating[m
+[32m+[m[32m    spinlock_acquire(&(new_first_pt->lock));[m
+[32m+[m
+[32m+[m[32m    int i = 0;[m
+[32m+[m[32m    int j = 0;[m
+[32m+[m[32m    while (i < FIRST_PTABLE_LIMIT) {[m
+[32m+[m[32m        /*  second level replicate */[m
+[32m+[m[32m        // copy whatever is initialised[m
+[32m+[m[32m        if (old_second_pt[i] != NULL) {[m
+[32m+[m			[32m// create new array of second_level_ptable arrays[m
+[32m+[m[32m            new_second_pt[i] = create_second_ptable();[m
+[32m+[m
+[32m+[m[32m            if (new_second_pt[i] == NULL) {[m
+[32m+[m[32m                // release lock as ENOMEM error[m
+[32m+[m[32m                spinlock_release(&(new_first_pt->lock));[m
+[32m+[m[32m                as_destroy(new_as);[m
+[32m+[m[32m                return ENOMEM;[m
+[32m+[m[32m            }[m
+[32m+[m[32m            // loop through second level table[m
+[32m+[m[32m            old_entries = old_second_pt[i];[m
+[32m+[m[32m            new_entries = new_second_pt[i];[m
+[32m+[m[32m            j = 0;[m
+[32m+[m
+[32m+[m[32m            /*  second level replicate, populate new third_level array */[m
+[32m+[m[32m            // copy all of third level entries into second level table[m
+[32m+[m[32m            while(j < SECOND_PTABLE_LIMIT) {[m
+[32m+[m
+[32m+[m[32m                // replicate non-NULL entries into second level page table[m
+[32m+[m[32m                if(old_entries[j] != NULL) {[m
+[32m+[m[32m                    new_entries[j] = third_ptable_clone(old_entries[j]);[m
+[32m+[m
+[32m+[m[32m                    // ENOMEM ERROR[m
+[32m+[m[32m                    if(new_entries[j] == NULL {[m
+[32m+[m[32m                        // release lock as ENOMEM error[m
+[32m+[m[32m                        spinlock_release(&(new_first_pt->lock));[m
+[32m+[m[32m                        as_destroy(new_as);[m
+[32m+[m[32m                        return ENOMEM;[m
+[32m+[m[32m                    }[m
+[32m+[m[32m                }[m
+[32m+[m[32m                j++;[m
+[32m+[m[32m            }[m
+[32m+[m			[32mnew_second_pt[i] = new_entries;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        i++;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    // release lock[m
+[32m+[m[32m    spinlock_release(&(new_first_pt->lock));[m
+[32m+[m
+[32m+[m[32m    // replicate regions > pass in region_list and loop through[m
+[32m+[m[32m    struct region *curr = old->region_list;[m
+[32m+[m[32m    while(curr != NULL) {[m
+[32m+[m[32m        as_define_region(new_as, curr->vaddr, curr->memsize, curr->readable, curr->writeable,curr->executable);[m
+[32m+[m[32m        curr = curr->next;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    *ret = new_as;[m
+[32m+[m[32m    return 0;[m
+ }[m
+ [m
+[32m+[m
+[32m+[m
+ void[m
+ as_destroy(struct addrspace *as)[m
+ {[m
+[31m-	/*[m
+[31m-	 * Clean up as needed.[m
+[31m-	 */[m
+[32m+[m[32m    struct region *curr = as->region_list;[m
+[32m+[m[32m    struct region *next = curr;[m
+[32m+[m	[32mwhile (curr != NULL) {[m
+[32m+[m		[32mnext = curr->next;[m
+[32m+[m		[32mkfree(curr);[m
+[32m+[m		[32mcurr = next;[m
+[32m+[m	[32m}[m
+[32m+[m[32m/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */[m
+[32m+[m	[32mfirst_ptable_clean(as->first_ptable);[m
+[32m+[m[32m/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */[m
+ [m
+ 	kfree(as);[m
+ }[m
+ [m
+[32m+[m
+[32m+[m[32m// on activate flush TLB - as per ASST3 Lecture Video[m
+ void[m
+ as_activate(void)[m
+ {[m
+[36m@@ -109,9 +189,14 @@[m [mas_activate(void)[m
+ 		return;[m
+ 	}[m
+ [m
+[31m-	/*[m
+[31m-	 * Write this.[m
+[31m-	 */[m
+[32m+[m[32m    // NUM_TLB given as 64 in /MIPS/include/tlb.h[m
+[32m+[m[32m     // disable interrupts[m
+[32m+[m[32m    int s = splhigh();[m
+[32m+[m[41m  [m	[32mfor (int i = 0; i < NUM_TLB; i++) {[m
+[32m+[m[41m  [m		[32mtlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);[m
+[32m+[m[41m  [m	[32m}[m
+[32m+[m[32m     // re-enable interrupts[m
+[32m+[m	[32msplx(s);[m
+ }[m
+ [m
+ void[m
+[36m@@ -122,6 +207,15 @@[m [mas_deactivate(void)[m
+ 	 * anything. See proc.c for an explanation of why it (might)[m
+ 	 * be needed.[m
+ 	 */[m
+[32m+[m
+[32m+[m[32m    // NUM_TLB given as 64 in /MIPS/include/tlb.h[m
+[32m+[m[32m    // disable interrupts[m
+[32m+[m[32m    int s = splhigh();[m
+[32m+[m[41m [m	[32mfor (int i = 0; i < NUM_TLB; i++) {[m
+[32m+[m[41m [m		[32mtlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);[m
+[32m+[m[41m [m	[32m}[m
+[32m+[m[32m    // re-enable interrupts[m
+[32m+[m[41m [m	[32msplx(s);[m
+ }[m
+ [m
+ /*[m
+[36m@@ -134,6 +228,7 @@[m [mas_deactivate(void)[m
+  * moment, these are ignored. When you write the VM system, you may[m
+  * want to implement them.[m
+  */[m
+[32m+[m
+ int[m
+ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,[m
+ 		 int readable, int writeable, int executable)[m
+[36m@@ -141,50 +236,79 @@[m [mas_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,[m
+ 	/*[m
+ 	 * Write this.[m
+ 	 */[m
+[32m+[m[32m/*********** LOCKS??? *******************************************************/[m
+[32m+[m[32m/*********** LOCKS??? *******************************************************/[m
+ [m
+[31m-	(void)as;[m
+[31m-	(void)vaddr;[m
+[31m-	(void)memsize;[m
+[31m-	(void)readable;[m
+[31m-	(void)writeable;[m
+[31m-	(void)executable;[m
+[31m-	return ENOSYS; /* Unimplemented */[m
+[32m+[m[32m    struct region *region = kmalloc(sizeof(struct region));[m
+[32m+[m[32m    if (region == NULL) {[m
+[32m+[m[32m        return ENOMEM;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    region->vaddr = vaddr;[m
+[32m+[m[32m    region->memsize = memsize;[m
+[32m+[m[32m    region->readable = readable != 0; //bool 1 or 0[m
+[32m+[m[32m    region->writeable = writeable != 0;[m
+[32m+[m[32m    region->executable = executable != 0;[m
+[32m+[m[32m    region->next = NULL;[m
+[32m+[m
+[32m+[m[32m    struct region *curr = as->region_list;[m
+[32m+[m[32m    struct region *end = curr;[m
+[32m+[m
+[32m+[m[32m    // check if region list is empty[m
+[32m+[m[32m    if (as->region_list != NULL) {[m
+[32m+[m[32m        while (curr != NULL) {[m
+[32m+[m[32m            if(curr->next == NULL) {[m
+[32m+[m[32m                // get end of list[m
+[32m+[m[32m                end = curr;[m
+[32m+[m[32m            }[m
+[32m+[m[32m            curr = curr->next;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        // add region to end of list[m
+[32m+[m[32m        end->next = region;[m
+[32m+[m[32m    } else {[m
+[32m+[m[32m        as->region_list = region;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    return 0;[m
+ }[m
+ [m
+[32m+[m[32m// before load - mark all region as writeable for loading of content into address space.[m
+ int[m
+ as_prepare_load(struct addrspace *as)[m
+ {[m
+[31m-	/*[m
+[31m-	 * Write this.[m
+[31m-	 */[m
+[32m+[m	[32mstruct region *curr = as->region_list;[m
+[32m+[m[32m    while(curr != NULL) {[m
+[32m+[m[32m        curr->writeable = (curr->writeable << 1) | 1; // shift[m
+[32m+[m[32m        curr = curr->next;[m
+[32m+[m[32m    }[m
+ [m
+[31m-	(void)as;[m
+ 	return 0;[m
+ }[m
+ [m
+[32m+[m
+ int[m
+ as_complete_load(struct addrspace *as)[m
+ {[m
+[31m-	/*[m
+[31m-	 * Write this.[m
+[31m-	 */[m
+[32m+[m[32m    struct region *curr = as->region_list;[m
+[32m+[m[32m    while(curr != NULL) {[m
+[32m+[m		[32mcurr->writeable >>= 1;[m
+[32m+[m		[32mcurr = curr->next;[m
+[32m+[m	[32m}[m
+ [m
+[31m-	(void)as;[m
+[31m-	return 0;[m
+[32m+[m[32m    return 0;[m
+ }[m
+ [m
+[32m+[m
+ int[m
+ as_define_stack(struct addrspace *as, vaddr_t *stackptr)[m
+ {[m
+[31m-	/*[m
+[31m-	 * Write this.[m
+[31m-	 */[m
+ [m
+[31m-	(void)as;[m
+[32m+[m[32m    int errno = as_define_region(as, USERSTACK - USER_STACK_SIZE, USER_STACK_SIZE, 1, 1, 0);[m
+[32m+[m[32m    if (errno) {[m
+[32m+[m[32m        return errno;[m
+[32m+[m[32m    }[m
+ [m
+ 	/* Initial user-level stack pointer */[m
+ 	*stackptr = USERSTACK;[m
+ [m
+ 	return 0;[m
+ }[m
+[31m-[m
+[1mdiff --git a/kern/vm/pagetable.c b/kern/vm/pagetable.c[m
+[1mindex 377d76f..a9bfea9 100644[m
+[1m--- a/kern/vm/pagetable.c[m
+[1m+++ b/kern/vm/pagetable.c[m
+[36m@@ -6,51 +6,131 @@[m
+ #include <current.h>[m
+ #include <spinlock.h>[m
+ [m
+[31m- // returns a first level page table initialised to 0 [m
+[32m+[m[32m// create first level page table initialised to 0[m
+ struct first_ptable *init_first_ptable()[m
+ {[m
+[31m-    struct first_ptable *first_ptable;[m
+[31m-    first_ptable = kmalloc(sizeof(struct first_ptable));[m
+[32m+[m[32m   struct first_ptable *first_ptable = kmalloc(sizeof(struct first_ptable));[m
+[32m+[m[32m   if(first_ptable == NULL) {[m
+[32m+[m[32m       return NULL; //deal with ENOMEM in call function[m
+[32m+[m[32m   }[m
+[32m+[m[32m   // initialise pointers to second_ptable[m
+[32m+[m[32m   first_ptable->entries = kmalloc(FIRST_PTABLE_LIMIT * sizeof(struct second_ptable *);[m
+[32m+[m[32m   if(first_ptable->entries == NULL) {[m
+[32m+[m[32m       kfree(first_ptable);[m
+[32m+[m[32m       return NULL; //deal with ENOMEM in call function[m
+[32m+[m[32m   }[m
+[32m+[m[32m   // initialise all bits to zero[m
+[32m+[m[32m   bzero(first_ptable->entries, FIRST_PTABLE_LIMIT * sizeof(struct second_ptable *));[m
+[32m+[m[32m   spinlock_init(&first_ptable->lock);[m
+ [m
+[31m-    // initialise pointers to second_ptable[m
+[31m-    first_ptable->entries = kmalloc(PAGE_ENTRY_LIMIT * sizeof(struct second_ptable *);[m
+[31m-    bzero(first_ptable->entries, PAGE_ENTRY_LIMIT * sizeof(struct second_ptable *));[m
+[32m+[m[32m   return first_ptable;[m
+[32m+[m[32m}[m
+ [m
+[31m-    spinlock_init(&first_ptable->lock);[m
+ [m
+[31m-    return first_ptable;[m
+[32m+[m[32m// Creates a new second level page table initialised to 0[m
+[32m+[m[32mstruct second_ptable *create_second_ptable() {[m
+[32m+[m[32m   struct second_ptable *second_ptable;[m
+[32m+[m[32m   second_ptable = kmalloc(sizeof(struct second_ptable));[m
+[32m+[m[32m   if(second_ptable == NULL) {[m
+[32m+[m[32m       return NULL; // deal with ENOMEM in call function[m
+[32m+[m[32m   }[m
+[32m+[m[32m   second_ptable->entries = kmalloc(SECOND_PTABLE_LIMIT * sizeof(struct third_ptable *));[m
+[32m+[m[32m   if(second_ptable->entries == NULL) {[m
+[32m+[m[32m       kfree(second_ptable);[m
+[32m+[m[32m       return NULL;[m
+[32m+[m[32m   }[m
+[32m+[m[32m   bzero(second_ptable->entries, SECOND_PTABLE_LIMIT * sizeof(third_ptable *));[m
+[32m+[m[32m   return second_ptable;[m
+ }[m
+ [m
+[31m-// returns a new second level page table initialised to 0[m
+[31m-struct second_ptable *create_second_ptable() {[m
+[31m-    struct second_ptable *second_ptable;[m
+[31m-    [m
+[31m-    // allocating and initialising page entries as 0[m
+[31m-    second_ptable->entries = kmalloc(PAGE_ENTRY_LIMIT * sizeof(paddr_t));[m
+[31m-    bzero(second_ptable->entries, PAGE_ENTRY_LIMIT * sizeof(paddr_t));[m
+ [m
+[31m-    return second_ptable;[m
+[32m+[m[32mstruct third_ptable *create_third_ptable() {[m
+[32m+[m[32m    struct third_ptable *third_ptable;[m
+[32m+[m[32m    third_ptable = kmalloc(sizeof(struct third_ptable));[m
+[32m+[m[32m    if(third_ptable == NULL) {[m
+[32m+[m[32m        return NULL;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    third_ptable->entries = kmalloc(THIRD_PTABLE_LIMIT * sizeof(paddr_t));[m
+[32m+[m[32m    if(third_ptable->entries == NULL) {[m
+[32m+[m[32m        kfree(third_ptable);[m
+[32m+[m[32m        return NULL;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    bzero(third_ptable->entries, THIRD_PTABLE_LIMIT * sizeof(paddr_t));[m
+[32m+[m
+[32m+[m[32m    return third_ptable;[m
+ }[m
+ [m
+[31m-// returns a copy of a second level page table[m
+[31m-struct second_ptable *copy_second_ptable(struct second_ptable *original_ptable) {[m
+[31m-    if (original_ptable == NULL) return NULL;[m
+ [m
+[31m-    // Create new pagetable[m
+[31m-    struct second_ptable *ptable = kmalloc(sizeof(struct second_ptable));[m
+[31m-    if (ptable == NULL) return NULL;[m
+ [m
+[31m-    // initialise new pagetable[m
+[31m-    ptable->entries = kmalloc(PAGE_ENTRY_LIMIT * sizeof(paddr_t));[m
+[31m-    bzero(ptable->entries, PAGE_ENTRY_LIMIT * sizeof(paddr_t));[m
+ [m
+[31m-    // copy over the page table entries[m
+[31m-    for (int i = 0; i < PAGE_ENTRY_LIMIT; i++) {[m
+[31m-        if (original_ptable->entries[i] != (paddr_t) NULL) {[m
+[31m-            vaddr_t new_frame = alloc_kpages(1);[m
+[31m-            memcpy((void*) new_frame, (void*) PADDR_TO_KVADDR(original_ptable->entries[i]), PAGE_SIZE);[m
+[31m-            ptable->entries[i] = KVADDR_TO_PADDR(new_frame);[m
+[32m+[m[32mstruct third_ptable *copy_third_ptable(struct third_ptable *old) {[m
+[32m+[m
+[32m+[m[32m    if (old == NULL) {[m
+[32m+[m[32m        return NULL;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    struct third_ptable *new = kmalloc(sizeof(struct third_ptable))[m
+[32m+[m[32m    if(new == NULL) {[m
+[32m+[m[32m        return NULL; //deal with ENOMEM in call fucntion[m
+[32m+[m[32m    }[m
+[32m+[m[32m    new->entries = (paddr_t *) kmalloc(THIRD_PTABLE_LIMIT * sizeof(paddr_t));[m
+[32m+[m[32m    if(new->entries == NULL) {[m
+[32m+[m[32m        kfree(new);[m
+[32m+[m[32m        return NULL;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    // intialise to 0[m
+[32m+[m[32m    bzero(new->entries, THIRD_PTABLE_LIMIT * sizeof(paddr_t));[m
+[32m+[m
+[32m+[m[32m    // duplicate old into new[m
+[32m+[m[32m    int i = 0;[m
+[32m+[m[32m    while(i < THIRD_PTABLE_LIMIT) {[m
+[32m+[m[32m        if(old->entries[i] != (paddr_t) NULL) {[m
+[32m+[m[32m            vaddr_t frame_alloc = alloc_kpages(1);[m
+[32m+[m[32m            memcpy((void*) frame_alloc, (void*) PADDR_TO_KVADDR(old->entries[i]), PAGE_SIZE);[m
+[32m+[m[32m            new->entries[i] = KVADDR_TO_PADDR(frame_alloc); // return new PADDR_T[m
+         }[m
+[32m+[m[32m        i++;[m
+     }[m
+[31m-    return ptable;[m
+[32m+[m[32m    return new;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m[32m// get physical address from virtual address[m
+[32m+[m[32mpaddr_t get_pt_frame(vaddr_t addr) {[m
+[32m+[m[32m    struct addrspace *as = proc_getas();[m
+[32m+[m[32m    struct first_ptable *first_ptable;[m
+[32m+[m[32m    struct second_ptable **second_ptable;[m
+[32m+[m[32m    struct third_ptable **third_ptable;[m
+[32m+[m[32m    first_ptable = as->first_ptable;[m
+[32m+[m
+[32m+[m[32m    // remove 12bit offset, we only want the 8-6-6 bits. & respective bits[m
+[32m+[m[32m    int page = address >> 12;[m
+[32m+[m[32m    int first_level = (page >> 12) & 0xFF; // first 8 bits[m
+[32m+[m[32m    int second_level = (page >> 6) & 0x3F; // second 6 bits[m
+[32m+[m[32m    int third_level = (page) & 0x3F; // third 6 bits[m
+[32m+[m
+[32m+[m[32m    //lock[m
+[32m+[m[32m    spinlock_acquire(&(first_ptable->lock));[m
+[32m+[m
+[32m+[m[32m    second_ptable = &first_ptable->entries[first_level];[m
+[32m+[m[32m    // if second level page table is NULL, create lazily[m
+[32m+[m[32m    if(*second_ptable == NULL) {[m
+[32m+[m[32m        *second_ptable = create_second_ptable();[m
+[32m+[m[32m        KASSERT(*second_ptable != NULL);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    third_ptable = &second_ptable->entries[second_level];[m
+[32m+[m[32m    // if third level page table is NULL, create lazily[m
+[32m+[m[32m    if(*third_ptable == NULL) {[m
+[32m+[m[32m        *third_ptable = create_third_ptable();[m
+[32m+[m[32m        KASSERT(*third_ptable != NULL);[m
+[32m+[m[32m    }[m
+[32m+[m[32m    //release lock[m
+[32m+[m[32m    spinlock_acquire(&(first_ptable->lock));[m
+[32m+[m
+[32m+[m[32m    // return physical frame.[m
+[32m+[m[32m    // Return null if frame not allocated[m
+[32m+[m[32m    return &((*third_ptable->entries[third_ptable]));[m
+[32m+[m
+ }[m
+[1mdiff --git a/kern/vm/vm.c b/kern/vm/vm.c[m
+[1mindex 79b2798..bb93465 100644[m
+[1m--- a/kern/vm/vm.c[m
+[1m+++ b/kern/vm/vm.c[m
+[36m@@ -11,8 +11,8 @@[m
+ [m
+ void vm_bootstrap(void)[m
+ {[m
+[31m-    /* Initialise any global components of your VM sub-system here.  [m
+[31m-     *  [m
+[32m+[m[32m    /* Initialise any global components of your VM sub-system here.[m
+[32m+[m[32m     *[m
+      * You may or may not need to add anything here depending what's[m
+      * provided or required by the assignment spec.[m
+      */[m
+[36m@@ -21,11 +21,46 @@[m [mvoid vm_bootstrap(void)[m
+ int[m
+ vm_fault(int faulttype, vaddr_t faultaddress)[m
+ {[m
+[31m-    (void) faulttype;[m
+[31m-    (void) faultaddress;[m
+[32m+[m[32m    // check NULL address[m
+[32m+[m[32m    if( faultaddress == NULL) {[m
+[32m+[m[32m        return NULL;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    // write to readonly region[m
+[32m+[m[32m    if (faulttype == VM_FAULT_READONLY) {[m
+[32m+[m[32m        return EFAULT;[m
+[32m+[m[32m    }[m
+ [m
+[31m-    panic("vm_fault hasn't been written yet\n");[m
+[32m+[m[32m    // check faulttype[m
+[32m+[m[32m    // Check if read attempt[m
+[32m+[m[32m    else if (faulttype == VM_FAULT_READ || faulttype == VM_FAULT_WRITE) {[m
+[32m+[m[32m        //get current process address space, check if valid[m
+[32m+[m[32m        struct addrspace *addr = proc_getas();[m
+[32m+[m[32m        if (addr == NULL) {[m
+[32m+[m[32m            return EFAULT;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        // check each region in list if fault address exists[m
+[32m+[m[32m        struct region *curr = addr->region_list;[m
+[32m+[m[32m        while(curr != NULL) {[m
+[32m+[m[32m            if( curr->vaddr <= faultaddress && faultaddress < (curr->vaddr + curr->memsize) ) {[m
+ [m
+[32m+[m[32m                // get physical frame from pagetable entry[m
+[32m+[m[32m                paddr_t *frame = get_pt_frame(faultaddress);[m
+[32m+[m[32m                // If not in page table, allocate frame[m
+[32m+[m[32m                if( *frame == (paddr_t) NULL) {[m
+[32m+[m[32m                    *frame = KVADDR_TO_PADDR(alloc_kpages(1));[m
+[32m+[m[32m                }[m
+[32m+[m[32m                int s = splhigh();[m
+[32m+[m[32m                uint32_t entryhi = faultaddress & PAGE_FRAME;[m
+[32m+[m[32m                uint32_t entrylo = (*frameRef & PAGE_FRAME) | ((curr->writeable & 1) ? TLBLO_DIRTY : 0) | ((curr->readable || (curr->writeable & 1) || curr->executable) ? TLBLO_VALID : 0)[m
+[32m+[m[32m                // random pick a tlb slot and allocate entryhi and entrylo into tlb[m
+[32m+[m[32m                tlb_random(entryhi, entrylo);[m
+[32m+[m[32m                splx(s);[m
+[32m+[m[32m                return 0;[m
+[32m+[m[32m            }[m
+[32m+[m[32m            curr = curr->next;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    // if address not found valid regions and not in pagetable[m
+[32m+[m[32m    }[m
+     return EFAULT;[m
+ }[m
+ [m
+[36m@@ -39,4 +74,3 @@[m [mvm_tlbshootdown(const struct tlbshootdown *ts)[m
+ 	(void)ts;[m
+ 	panic("vm tried to do tlb shootdown?!\n");[m
+ }[m
+[31m-[m
