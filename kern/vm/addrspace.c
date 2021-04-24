@@ -93,8 +93,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
     struct second_ptable **new_second_pt = new_first_pt->entries;
 
     // array of pointers to third level pagetable
-    struct third_ptable **old_entries = old_second_pt->entries;
-    struct third_ptable **new_entries = old_second_pt->entries;
+    struct third_ptable **old_entries = (*old_second_pt)->entries;
+    struct third_ptable **new_entries = (*new_second_pt)->entries;
 
     // set lock when replicating
     spinlock_acquire(&(new_first_pt->lock));
@@ -115,8 +115,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
                 return ENOMEM;
             }
             // loop through second level table
-            old_entries = old_second_pt[i];
-            new_entries = new_second_pt[i];
+            (*old_entries) = (*old_second_pt)->entries[i];
+            (*new_entries) = (*new_second_pt)->entries[i];
             j = 0;
 
             /*  second level replicate, populate new third_level array */
@@ -137,7 +137,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
                 }
                 j++;
             }
-			new_second_pt[i] = new_entries;
+			(*new_second_pt)->entries[i] = (*new_entries);
         }
         i++;
     }
@@ -167,7 +167,7 @@ as_destroy(struct addrspace *as)
 		curr = next;
 	}
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
-	//first_ptable_clean(as->first_ptable);
+	// first_ptable_clean(as->first_ptable);
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 
 	kfree(as);
