@@ -25,7 +25,6 @@ struct first_ptable *init_first_ptable()
    return first_ptable;
 }
 
-
 // Creates a new second level page table initialised to 0
 struct second_ptable *create_second_ptable() {
    struct second_ptable *second_ptable;
@@ -41,7 +40,6 @@ struct second_ptable *create_second_ptable() {
    bzero(second_ptable->entries, SECOND_PTABLE_LIMIT * sizeof(third_ptable *));
    return second_ptable;
 }
-
 
 struct third_ptable *create_third_ptable() {
     struct third_ptable *third_ptable;
@@ -59,9 +57,6 @@ struct third_ptable *create_third_ptable() {
 
     return third_ptable;
 }
-
-
-
 
 struct third_ptable *copy_third_ptable(struct third_ptable *old) {
 
@@ -92,8 +87,6 @@ struct third_ptable *copy_third_ptable(struct third_ptable *old) {
     }
     return new;
 }
-
-
 
 // get physical address from virtual address
 paddr_t get_pt_frame(vaddr_t addr) {
