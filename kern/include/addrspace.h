@@ -42,7 +42,7 @@ struct region {
         unsigned writeable:2;
         unsigned executable:1;
         struct region *next;
-}
+};
 
 #include <vm.h>
 #include "opt-dumbvm.h"
