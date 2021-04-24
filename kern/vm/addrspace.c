@@ -59,10 +59,10 @@ as_create(void)
  	}
 
  	// Create first level page table "lazy" when needed > first process
- 	as->region_list = init_first_ptable();
+ 	as->first_ptable = init_first_ptable();
 
  	// check if kmallocd
- 	if( as->region_list == NULL ) {
+ 	if( as->first_ptable == NULL ) {
  		kfree(as);
  		return NULL;
  	}
