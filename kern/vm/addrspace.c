@@ -94,7 +94,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
     // array of pointers to third level pagetable
     struct third_ptable **old_entries = old_second_pt->entries;
-    struct third_ptable **new_entries = new_second_pt->entries;
+    struct third_ptable **new_entries = old_second_pt->entries;
 
     // set lock when replicating
     spinlock_acquire(&(new_first_pt->lock));
@@ -125,10 +125,10 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
                 // replicate non-NULL entries into second level page table
                 if(old_entries[j] != NULL) {
-                    new_entries[j] = third_ptable_clone(old_entries[j]);
+                    new_entries[j] = copy_third_ptable(old_entries[j]);
 
                     // ENOMEM ERROR
-                    if(new_entries[j] == NULL {
+                    if(new_entries[j] == NULL) {
                         // release lock as ENOMEM error
                         spinlock_release(&(new_first_pt->lock));
                         as_destroy(new_as);
@@ -167,7 +167,7 @@ as_destroy(struct addrspace *as)
 		curr = next;
 	}
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
-	first_ptable_clean(as->first_ptable);
+	//first_ptable_clean(as->first_ptable);
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 
 	kfree(as);
@@ -302,7 +302,7 @@ int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 
-    int errno = as_define_region(as, USERSTACK - USER_STACK_SIZE, USER_STACK_SIZE, 1, 1, 0);
+    int errno = as_define_region(as, USERSTACK - FIXED_STACK_SIZE, FIXED_STACK_SIZE, 1, 1, 0);
     if (errno) {
         return errno;
     }
