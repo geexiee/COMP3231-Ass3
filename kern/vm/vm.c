@@ -6,6 +6,9 @@
 #include <vm.h>
 #include <machine/tlb.h>
 
+#include <proc.h>
+#include <spl.h>
+
 /* Place your page table functions here */
 
 
@@ -22,8 +25,8 @@ int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
     // check NULL address
-    if( faultaddress == NULL) {
-        return NULL;
+    if( faultaddress == (vaddr_t) NULL) {
+        return EFAULT;
     }
     // write to readonly region
     if (faulttype == VM_FAULT_READONLY) {
@@ -51,7 +54,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
                 }
                 int s = splhigh();
                 uint32_t entryhi = faultaddress & PAGE_FRAME;
-                uint32_t entrylo = (*frameRef & PAGE_FRAME) | ((curr->writeable & 1) ? TLBLO_DIRTY : 0) | ((curr->readable || (curr->writeable & 1) || curr->executable) ? TLBLO_VALID : 0)
+                uint32_t entrylo = (*frame & PAGE_FRAME) | ((curr->writeable & 1) ? TLBLO_DIRTY : 0) | ((curr->readable || (curr->writeable & 1) || curr->executable) ? TLBLO_VALID : 0);
                 // random pick a tlb slot and allocate entryhi and entrylo into tlb
                 tlb_random(entryhi, entrylo);
                 splx(s);
