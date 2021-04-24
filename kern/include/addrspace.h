@@ -46,6 +46,7 @@ struct region {
 
 #include <vm.h>
 #include "opt-dumbvm.h"
+#include "pagetable.h"
 
 struct vnode;
 
@@ -66,8 +67,8 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        struct region region_list;
-        
+        struct region *region_list;
+        struct first_ptable *ptable;
 #endif
 };
 
