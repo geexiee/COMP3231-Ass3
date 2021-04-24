@@ -103,7 +103,7 @@ paddr_t *get_pt_frame(vaddr_t addr) {
     int third_level = (page) & 0x3F; // third 6 bits
 
     //lock
-    // spinlock_acquire(&(first_ptable->lock));
+    spinlock_acquire(&(first_ptable->lock));
 
     second_ptable = &first_ptable->entries[first_level];
     // if second level page table is NULL, create lazily
@@ -119,7 +119,7 @@ paddr_t *get_pt_frame(vaddr_t addr) {
         KASSERT(*third_ptable != NULL);
     }
     //release lock
-    // spinlock_release(&(first_ptable->lock));
+    spinlock_release(&(first_ptable->lock));
 
     // return physical frame.
     // Return null if frame not allocated
