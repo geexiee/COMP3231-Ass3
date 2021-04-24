@@ -1,4 +1,4 @@
-#include <ptable.h>
+#include <pagetable.h>
 #include <vm.h>
 #include <lib.h>
 #include <addrspace.h>
