@@ -46,6 +46,7 @@ struct region {
 
 #include <vm.h>
 #include "opt-dumbvm.h"
+#include "pagetable.h"
 
 struct vnode;
 

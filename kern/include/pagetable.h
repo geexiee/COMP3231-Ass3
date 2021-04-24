@@ -2,7 +2,6 @@
 #define _PAGETABLE_H_
 
 struct first_ptable {
-    struct spinlock lock;
     struct second_ptable **entries; // array of pointers to secondlvl tables
 };
 
