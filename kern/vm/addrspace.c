@@ -172,7 +172,7 @@ as_destroy(struct addrspace *as)
 		curr = next;
 	}
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
-	// ptable_cleanup(as->first_ptable);
+	ptable_cleanup(as->first_ptable);
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 
 	kfree(as);
