@@ -126,3 +126,22 @@ paddr_t *get_pt_frame(vaddr_t addr) {
     return &((*third_ptable)->entries[third_level]);
 
 }
+
+void ptable_cleanup(struct first_ptable *first_ptable) {
+
+    // loop through to free -> third_ptable entries and then second ptable entries
+    struct second_ptable **second_ptable = first_ptable->entries;
+    // struct third_ptable **third_ptable = (*second_ptable)->entries;
+
+    //LOCK
+    spinlock_cleanup(&(first_ptable->lock));
+    for(int i = 0; i < FIRST_PTABLE_LIMIT; i++) {
+        for(int j = 0; j < SECOND_PTABLE_LIMIT; j++) {
+            kfree( second_ptable[i]->entries[j]->entries );
+        }
+    }
+    // UNLOCK
+
+    kfree(first_ptable->entries);
+    kfree(first_ptable);
+}

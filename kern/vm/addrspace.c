@@ -116,10 +116,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
                 as_destroy(new_as);
                 return ENOMEM;
             }
+
+            j = 0;
             // loop through second level table
+            // old_entries = old_second_pt[i])->entries;
             (*old_entries) = (*old_second_pt)->entries[i];
             (*new_entries) = (*new_second_pt)->entries[i];
-            j = 0;
+
 
             /*  second level replicate, populate new third_level array */
             // copy all of third level entries into second level table
@@ -169,7 +172,7 @@ as_destroy(struct addrspace *as)
 		curr = next;
 	}
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
-	// first_ptable_clean(as->first_ptable);
+	// ptable_cleanup(as->first_ptable);
 /* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 
 	kfree(as);

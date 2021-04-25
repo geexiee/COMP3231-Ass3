@@ -28,6 +28,7 @@ struct third_ptable *create_third_ptable(void);
 
 struct third_ptable *copy_third_ptable(struct third_ptable *old);
 paddr_t *get_pt_frame(vaddr_t addr);
+void ptable_cleanup(struct first_ptable *first_ptable);
 
 
 #endif /* _PAGETABLE_H_ */
