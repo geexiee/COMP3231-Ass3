@@ -131,13 +131,21 @@ void ptable_cleanup(struct first_ptable *first_ptable) {
 
     // loop through to free -> third_ptable entries and then second ptable entries
     struct second_ptable **second_ptable = first_ptable->entries;
-    // struct third_ptable **third_ptable = (*second_ptable)->entries;
+    struct third_ptable **third_ptable = (*second_ptable)->entries;
+    //
+    // spinlock_cleanup(&(first_ptable->lock));
 
-    //LOCK
-    spinlock_cleanup(&(first_ptable->lock));
     for(int i = 0; i < FIRST_PTABLE_LIMIT; i++) {
-        for(int j = 0; j < SECOND_PTABLE_LIMIT; j++) {
-            kfree( second_ptable[i]->entries[j]->entries );
+        if(second_ptable[i]) {
+            third_ptable = second_ptable[i]->entries;
+            for(int j = 0; j < SECOND_PTABLE_LIMIT; j++) {
+                if(third_ptable[j]) {
+                    kfree( third_ptable[j]->entries );
+                    kfree(third_ptable[j]);
+                }
+            }
+            kfree(second_ptable[i]->entries);
+            kfree(second_ptable[i]);
         }
     }
     // UNLOCK

@@ -120,8 +120,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
             j = 0;
             // loop through second level table
             // old_entries = old_second_pt[i])->entries;
-            (*old_entries) = (*old_second_pt)->entries[i];
-            (*new_entries) = (*new_second_pt)->entries[i];
+            old_entries = old_second_pt[i]->entries;
+            new_entries = new_second_pt[i]->entries;
 
 
             /*  second level replicate, populate new third_level array */
