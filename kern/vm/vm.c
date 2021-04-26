@@ -5,12 +5,8 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <machine/tlb.h>
-
 #include <proc.h>
 #include <spl.h>
-
-/* Place your page table functions here */
-
 
 void vm_bootstrap(void)
 {
@@ -28,7 +24,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     if( faultaddress == (vaddr_t) NULL) {
         return EFAULT;
     }
-    // write to readonly region
+    // write to read only region
     if (faulttype == VM_FAULT_READONLY) {
         return EFAULT;
     }
@@ -36,7 +32,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     // check faulttype
     // Check if read attempt
     else if (faulttype == VM_FAULT_READ || faulttype == VM_FAULT_WRITE) {
-        //get current process address space, check if valid
+        // get current process address space, check if valid
         struct addrspace *addr = proc_getas();
         if (addr == NULL) {
             return EFAULT;
@@ -50,6 +46,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
                 // If not in page table, allocate frame
                 if( *frame == (paddr_t) NULL) {
                     *frame = KVADDR_TO_PADDR(alloc_kpages(1));
+                    bzero((void*)PADDR_TO_KVADDR(*frame), PAGE_SIZE);
                 }
                 int s = splhigh();
                 uint32_t entryhi = faultaddress & PAGE_FRAME;

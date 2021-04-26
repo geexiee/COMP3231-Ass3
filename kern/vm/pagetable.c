@@ -10,18 +10,17 @@ struct first_ptable *init_first_ptable()
 {
    struct first_ptable *first_ptable = kmalloc(sizeof(struct first_ptable));
    if(first_ptable == NULL) {
-       return NULL; //deal with ENOMEM in call function
+       return NULL; // deal with ENOMEM in call function
    }
    // initialise pointers to second_ptable
    first_ptable->entries = kmalloc(FIRST_PTABLE_LIMIT * sizeof(struct second_ptable *));
    if(first_ptable->entries == NULL) {
        kfree(first_ptable);
-       return NULL; //deal with ENOMEM in call function
+       return NULL; 
    }
    // initialise all bits to zero
    bzero(first_ptable->entries, FIRST_PTABLE_LIMIT * sizeof(struct second_ptable *));
    spinlock_init(&first_ptable->lock);
-
    return first_ptable;
 }
 
@@ -54,12 +53,10 @@ struct third_ptable *create_third_ptable() {
         return NULL;
     }
     bzero(third_ptable->entries, THIRD_PTABLE_LIMIT * sizeof(paddr_t));
-
     return third_ptable;
 }
 
 struct third_ptable *copy_third_ptable(struct third_ptable *old) {
-
     if (old == NULL) {
         return NULL;
     }
@@ -72,14 +69,14 @@ struct third_ptable *copy_third_ptable(struct third_ptable *old) {
         kfree(new);
         return NULL;
     }
-    // intialise to 0
-    bzero(new->entries, THIRD_PTABLE_LIMIT * sizeof(paddr_t));
+    bzero(new->entries, THIRD_PTABLE_LIMIT * sizeof(paddr_t)); // initialise to 0
 
     // duplicate old into new
     int i = 0;
     while(i < THIRD_PTABLE_LIMIT) {
         if(old->entries[i] != (paddr_t) NULL) {
             vaddr_t frame_alloc = alloc_kpages(1);
+            bzero((void*)frame_alloc,PAGE_SIZE);
             memcpy((void*) frame_alloc, (void*) PADDR_TO_KVADDR(old->entries[i]), PAGE_SIZE);
             new->entries[i] = KVADDR_TO_PADDR(frame_alloc); // return new PADDR_T
         }
@@ -122,17 +119,15 @@ paddr_t *get_pt_frame(vaddr_t addr) {
     spinlock_release(&(first_ptable->lock));
 
     // return physical frame.
-    // Return null if frame not allocated
+    // returns null if frame not allocated
     return &((*third_ptable)->entries[third_level]);
 
 }
 
 void ptable_cleanup(struct first_ptable *first_ptable) {
-
     // loop through to free -> third_ptable entries and then second ptable entries
     struct second_ptable **second_ptable = first_ptable->entries;
     struct third_ptable **third_ptable = (*second_ptable)->entries;
-
     spinlock_cleanup(&(first_ptable->lock));
 
     // go through first level page table and check whats allocated
@@ -145,12 +140,11 @@ void ptable_cleanup(struct first_ptable *first_ptable) {
                     // go through third level page PADDR table and kfree_pages
                     for(int k = 0; k < THIRD_PTABLE_LIMIT; k++) {
                         if(third_ptable[j]->entries[k]) {
-
                             // free the physical frame
-                            free_kpages( PADDR_TO_KVADDR (third_ptable[j]->entries[k]) );
+                            free_kpages( PADDR_TO_KVADDR (third_ptable[j]->entries[k]));
                         }
                     }
-                    kfree( third_ptable[j]->entries );
+                    kfree(third_ptable[j]->entries); // free tables and entries as we go
                     kfree(third_ptable[j]);
                 }
             }
@@ -158,7 +152,6 @@ void ptable_cleanup(struct first_ptable *first_ptable) {
             kfree(second_ptable[i]);
         }
     }
-
     kfree(first_ptable->entries);
     kfree(first_ptable);
 }

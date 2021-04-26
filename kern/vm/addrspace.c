@@ -61,12 +61,11 @@ as_create(void)
 
  	// Create first level page table "lazy" when needed > first process
  	as->first_ptable = init_first_ptable();
-
- 	// check if kmallocd
  	if( as->first_ptable == NULL ) {
  		kfree(as);
  		return NULL;
  	}
+
     // initialise head of list to NULL
     as->region_list = NULL;
  	return as;
@@ -76,10 +75,6 @@ as_create(void)
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
-    // TODO: second and third level clone
-    // Second level -> returns array of pointers
-    // Third level -> returns array with each paddr copied in
-
     // Create a new address space - calls as_create
     struct addrspace *new_as;
     if ((new_as = as_create()) == NULL) {
@@ -104,8 +99,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
     int i = 0;
     int j = 0;
     while (i < FIRST_PTABLE_LIMIT) {
-        /*  second level replicate */
-        // copy whatever is initialised
+        //  second level replicate 
         if (old_second_pt[i] != NULL) {
 			// create new array of second_level_ptable arrays
             new_second_pt[i] = create_second_ptable();
@@ -119,19 +113,14 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
             j = 0;
             // loop through second level table
-            // old_entries = old_second_pt[i])->entries;
             old_entries = old_second_pt[i]->entries;
             new_entries = new_second_pt[i]->entries;
 
-            /*  second level replicate, populate new third_level array */
-            // copy all of third level entries into second level table
+            // populate third level entries
             while(j < SECOND_PTABLE_LIMIT) {
-
-                // replicate non-NULL entries into second level page table
+                // copy non-NULL entries into second level page table
                 if(old_entries[j] != NULL) {
                     new_entries[j] = copy_third_ptable(old_entries[j]);
-
-                    // ENOMEM ERROR
                     if(new_entries[j] == NULL) {
                         // release lock as ENOMEM error
                         spinlock_release(&(new_first_pt->lock));
@@ -148,7 +137,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
     // release lock
     spinlock_release(&(new_first_pt->lock));
 
-    // replicate regions > pass in region_list and loop through
+    // loop through and copy regions
     struct region *curr = old->region_list;
     while(curr != NULL) {
         as_define_region(new_as, curr->vaddr, curr->memsize, curr->readable, curr->writeable,curr->executable);
@@ -163,6 +152,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
+    // loop through and free regions
     struct region *curr = as->region_list;
     struct region *next = curr;
 	while (curr != NULL) {
@@ -175,7 +165,7 @@ as_destroy(struct addrspace *as)
 }
 
 
-// on activate flush TLB - as per ASST3 Lecture Video
+// taken from dumbvm.c
 void
 as_activate(void)
 {
@@ -183,14 +173,9 @@ as_activate(void)
 
 	as = proc_getas();
 	if (as == NULL) {
-		/*
-		 * Kernel thread without an address space; leave the
-		 * prior address space in place.
-		 */
 		return;
 	}
 
-    // NUM_TLB given as 64 in /MIPS/include/tlb.h
     int s = splhigh();
   	for (int i = 0; i < NUM_TLB; i++) {
   		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
@@ -198,15 +183,10 @@ as_activate(void)
 	splx(s);
 }
 
+// taken from dumbvm.c
 void
 as_deactivate(void)
 {
-	/*
-	 * Write this. For many designs it won't need to actually do
-	 * anything. See proc.c for an explanation of why it (might)
-	 * be needed.
-	 */
-
     // NUM_TLB given as 64 in /MIPS/include/tlb.h
     int s = splhigh();
  	for (int i = 0; i < NUM_TLB; i++) {
@@ -215,25 +195,12 @@ as_deactivate(void)
  	splx(s);
 }
 
-/*
- * Set up a segment at virtual address VADDR of size MEMSIZE. The
- * segment in memory extends from VADDR up to (but not including)
- * VADDR+MEMSIZE.
- *
- * The READABLE, WRITEABLE, and EXECUTABLE flags are set if read,
- * write, or execute permission should be set on the segment. At the
- * moment, these are ignored. When you write the VM system, you may
- * want to implement them.
- */
-
+// define region at vaddr of size memsize
+// include permission flags for the segment
 int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
-
     struct region *region = kmalloc(sizeof(struct region));
     if (region == NULL) {
         return ENOMEM;
@@ -241,7 +208,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
     region->vaddr = vaddr;
     region->memsize = memsize;
-    region->readable = readable != 0; //bool 1 or 0
+    region->readable = readable != 0; 
     region->writeable = writeable != 0;
     region->executable = executable != 0;
     region->next = NULL;
@@ -299,7 +266,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
     if (errno) {
         return errno;
     }
-	/* Initial user-level stack pointer */
+    // userlvl stack pointer
 	*stackptr = USERSTACK;
 	return 0;
 }
