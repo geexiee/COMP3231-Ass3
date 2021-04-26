@@ -69,6 +69,8 @@ as_create(void)
  		return NULL;
  	}
 
+    as->region_list = NULL;
+
  	return as;
 }
 
