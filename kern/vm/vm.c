@@ -45,7 +45,6 @@ vm_fault(int faulttype, vaddr_t faultaddress)
         struct region *curr = addr->region_list;
         while(curr != NULL) {
             if( curr->vaddr <= faultaddress && faultaddress < (curr->vaddr + curr->memsize) ) {
-
                 // get physical frame from pagetable entry
                 paddr_t *frame = get_pt_frame(faultaddress);
                 // If not in page table, allocate frame
@@ -54,7 +53,11 @@ vm_fault(int faulttype, vaddr_t faultaddress)
                 }
                 int s = splhigh();
                 uint32_t entryhi = faultaddress & PAGE_FRAME;
-                uint32_t entrylo = (*frame & PAGE_FRAME) | ((curr->writeable & 1) ? TLBLO_DIRTY : 0) | ((curr->readable || (curr->writeable & 1) || curr->executable) ? TLBLO_VALID : 0);
+                uint32_t entrylo = (*frame & PAGE_FRAME)
+                    | ((curr->writeable & 1) ? TLBLO_DIRTY : 0)
+                    | ((curr->readable || (curr->writeable & 1)
+                    || curr->executable) ? TLBLO_VALID : 0);
+
                 // random pick a tlb slot and allocate entryhi and entrylo into tlb
                 tlb_random(entryhi, entrylo);
                 splx(s);
@@ -63,7 +66,10 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             curr = curr->next;
         }
     // if address not found valid regions and not in pagetable
+    } else {
+        return EFAULT;
     }
+    // faulttype not recognised
     return EFAULT;
 }
 

@@ -54,7 +54,6 @@ struct addrspace *
 as_create(void)
 {
  	struct addrspace *as;
-
  	as = kmalloc(sizeof(struct addrspace));
  	if (as == NULL) {
  		return NULL;
@@ -68,9 +67,8 @@ as_create(void)
  		kfree(as);
  		return NULL;
  	}
-
+    // initialise head of list to NULL
     as->region_list = NULL;
-
  	return as;
 }
 
@@ -113,7 +111,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
             new_second_pt[i] = create_second_ptable();
 
             if (new_second_pt[i] == NULL) {
-                // release lock as ENOMEM error
+                // release lock due to ENOMEM error
                 spinlock_release(&(new_first_pt->lock));
                 as_destroy(new_as);
                 return ENOMEM;
@@ -124,7 +122,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
             // old_entries = old_second_pt[i])->entries;
             old_entries = old_second_pt[i]->entries;
             new_entries = new_second_pt[i]->entries;
-
 
             /*  second level replicate, populate new third_level array */
             // copy all of third level entries into second level table
@@ -173,10 +170,7 @@ as_destroy(struct addrspace *as)
 		kfree(curr);
 		curr = next;
 	}
-/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOO sanity check logic above OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
 	ptable_cleanup(as->first_ptable);
-/* TO DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO */
-
 	kfree(as);
 }
 
@@ -197,12 +191,10 @@ as_activate(void)
 	}
 
     // NUM_TLB given as 64 in /MIPS/include/tlb.h
-     // disable interrupts
     int s = splhigh();
   	for (int i = 0; i < NUM_TLB; i++) {
   		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
   	}
-     // re-enable interrupts
 	splx(s);
 }
 
@@ -216,12 +208,10 @@ as_deactivate(void)
 	 */
 
     // NUM_TLB given as 64 in /MIPS/include/tlb.h
-    // disable interrupts
     int s = splhigh();
  	for (int i = 0; i < NUM_TLB; i++) {
  		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
  	}
-    // re-enable interrupts
  	splx(s);
 }
 
@@ -243,8 +233,6 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	/*
 	 * Write this.
 	 */
-/*********** LOCKS??? *******************************************************/
-/*********** LOCKS??? *******************************************************/
 
     struct region *region = kmalloc(sizeof(struct region));
     if (region == NULL) {
@@ -278,7 +266,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
     return 0;
 }
 
-// before load - mark all region as writeable for loading of content into address space.
+// before load - mark all region as writeable for loading of content into addrspace.
 int
 as_prepare_load(struct addrspace *as)
 {
@@ -291,7 +279,7 @@ as_prepare_load(struct addrspace *as)
 	return 0;
 }
 
-
+// before load - mark all region as read only after all content loaded onto addrspace.
 int
 as_complete_load(struct addrspace *as)
 {
@@ -300,7 +288,6 @@ as_complete_load(struct addrspace *as)
 		curr->writeable >>= 1;
 		curr = curr->next;
 	}
-
     return 0;
 }
 
@@ -308,14 +295,11 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-
     int errno = as_define_region(as, USERSTACK - FIXED_STACK_SIZE, FIXED_STACK_SIZE, 1, 1, 0);
     if (errno) {
         return errno;
     }
-
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-
 	return 0;
 }
