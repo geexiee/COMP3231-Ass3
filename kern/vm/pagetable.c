@@ -132,14 +132,24 @@ void ptable_cleanup(struct first_ptable *first_ptable) {
     // loop through to free -> third_ptable entries and then second ptable entries
     struct second_ptable **second_ptable = first_ptable->entries;
     struct third_ptable **third_ptable = (*second_ptable)->entries;
-    //
-    // spinlock_cleanup(&(first_ptable->lock));
 
+    spinlock_cleanup(&(first_ptable->lock));
+
+    // go through first level page table and check whats allocated
     for(int i = 0; i < FIRST_PTABLE_LIMIT; i++) {
         if(second_ptable[i]) {
             third_ptable = second_ptable[i]->entries;
+            // go through second level page table and check whats allocated
             for(int j = 0; j < SECOND_PTABLE_LIMIT; j++) {
                 if(third_ptable[j]) {
+                    // go through third level page PADDR table and kfree_pages
+                    for(int k = 0; k < THIRD_PTABLE_LIMIT; k++) {
+                        if(third_ptable[j]->entries[k]) {
+
+                            // free the physical frame
+                            free_kpages( PADDR_TO_KVADDR (third_ptable[j]->entries[k]) );
+                        }
+                    }
                     kfree( third_ptable[j]->entries );
                     kfree(third_ptable[j]);
                 }
@@ -148,7 +158,6 @@ void ptable_cleanup(struct first_ptable *first_ptable) {
             kfree(second_ptable[i]);
         }
     }
-    // UNLOCK
 
     kfree(first_ptable->entries);
     kfree(first_ptable);
